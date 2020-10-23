@@ -1,0 +1,20 @@
+<div class="row">
+	<div class="{% if fullwidth %}{% elif mediumwidth %}col-6{%else%}col-3{% endif %} col">
+		<form class="form" method="{% if method %}{{method}}{% else %}POST{% endif %}" action="{{action}}">
+			{% if method != 'GET' %}
+				{% csrf_token %}
+			{% endif %}
+			<table class="table">
+				{% for _ in num_players %}
+					<tr>
+						<td>Player name: </td>
+						<td><input type="text" name="player_name_{{forloop.counter}}" id="player_name_{{forloop.counter}}" required></td>
+					</tr>
+				{% endfor %}
+				<tr>
+					<td></td>
+					<td><input type="submit" class="btn btn-primary" value="{% if submit_text %}{{submit_text}}{%else%}submit{%endif%}" /></td>
+			</table>
+		</form>
+	</div>
+</div>
