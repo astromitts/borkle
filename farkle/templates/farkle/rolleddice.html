@@ -15,6 +15,10 @@
 
 {% if not scrubbed %}
 	{% if selections %}
+		<div>OR end your turn:</div>
+		<div>
+			<input class="btn btn-danger" type="submit" id="nextplayer" data-target-url="{% url 'play_game' %}" value="End Turn" />
+		</div>
 		<div>
 			OR roll again with {{remaining_count}} dice
 		</div>
@@ -31,7 +35,7 @@
 {% else %}
 	FARKLE! no score :(
 {% endif %}
-{% if selections or scrubbed %}
+{% if scrubbed %}
 	<div>end your turn:</div>
 	<div>
 		<input class="btn btn-danger" type="submit" id="nextplayer" data-target-url="{% url 'play_game' %}" value="End Turn" />
