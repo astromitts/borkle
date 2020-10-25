@@ -43,7 +43,7 @@ class Start(View):
             existing_game = Game.objects.filter(pk=request.session.get('game_id')).exists()
             if existing_game:
                 Game.objects.get(pk=request.session['game_id']).delete()
-            new_game = Game(max_score=request.session['max_score'], session_id=request.session.session_key)
+            new_game = Game(max_score=request.session['max_score'])
             new_game.save()
             request.session['game_id'] = new_game.pk
             request.session['players'] = []
