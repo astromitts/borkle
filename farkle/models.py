@@ -177,14 +177,19 @@ class Turn(models.Model):
             self.save()
         return self.score
 
+    def lock_selections(self):
+        for ds in self.diceselection_set.all():
+            ds.status = 'locked'
+            ds.save()
+
     def roll(self):
+        self.lock_selections()
         self.dice_1 = None
         self.dice_2 = None
         self.dice_3 = None
         self.dice_4 = None
         self.dice_5 = None
         self.dice_6 = None
-
         if self.available_dice >= 1:
             self.dice_1 = random.choice(dice_set)
         if self.available_dice >= 2:
@@ -224,6 +229,31 @@ class Turn(models.Model):
             idx +=1
         return values
 
+    def undo_selection(self, selection):
+        vals = [selection.dice_1, selection.dice_2, selection.dice_3, selection.dice_4, selection.dice_5, selection.dice_6 ]
+        for val in vals:
+            if val:
+                if not self.dice_1:
+                    self.dice_1 = val
+                    self.available_dice += 1
+                elif not self.dice_2:
+                    self.dice_2 = val
+                    self.available_dice += 1
+                elif not self.dice_3:
+                    self.dice_3 = val
+                    self.available_dice += 1
+                elif not self.dice_4:
+                    self.dice_4 = val
+                    self.available_dice += 1
+                elif not self.dice_5:
+                    self.dice_5 = val
+                    self.available_dice += 1
+                elif not self.dice_6:
+                    self.dice_6 = val
+                    self.available_dice += 1
+        self.save()
+        selection.delete()
+
 
 class DiceSelection(models.Model):
     turn = models.ForeignKey(Turn, on_delete=models.CASCADE)
@@ -235,6 +265,7 @@ class DiceSelection(models.Model):
     dice_6 = models.IntegerField(choices=dice_choices, null=True)
     score = models.IntegerField(default=0)
     score_type = models.CharField(max_length=30, blank=True, null=True)
+    status = models.CharField(max_length=10, choices=[('active', 'active'), ('locked', 'locked')], default='active')
 
     @property
     def scored_values(self):
@@ -242,6 +273,8 @@ class DiceSelection(models.Model):
         values = {
             'score': self.score,
             'score_type': self.score_type,
+            'pk': self.pk,
+            'status': self.status,
             'dice': {}
         }
         idx = 1

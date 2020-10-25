@@ -10,7 +10,13 @@ from farkle.utils import Score
 
 class Start(View):
     def get(self, request, *args, **kwargs):
+        # clear out old game if it is there
+        existing_game = Game.objects.filter(pk=request.session.get('game_id')).exists()
+        if existing_game:
+            Game.objects.get(pk=request.session['game_id']).delete()
+            request.session['state'] = 'setup'
         Game.lazy_cleanup()
+
         request.session.set_expiry(0)  # sets session to terminate on browser close
         template = loader.get_template('farkle/forms/game_setup.html')
         form = FormGameSetup(initial={'how_many_points_are_you_playing_to': 5000, 'how_many_players': 2})
@@ -39,10 +45,6 @@ class Start(View):
             }
             return HttpResponse(template.render(context, request))
         else:
-            # clear out old game if it is there
-            existing_game = Game.objects.filter(pk=request.session.get('game_id')).exists()
-            if existing_game:
-                Game.objects.get(pk=request.session['game_id']).delete()
             new_game = Game(max_score=request.session['max_score'])
             new_game.save()
             request.session['game_id'] = new_game.pk
@@ -120,14 +122,35 @@ class MakeSelection(View):
         current_turn = current_player.current_turn
         new_selection = DiceSelection.create(current_turn, request.GET)
         test_score = Score([rv['value'] for key, rv in game.current_player.current_turn.rolled_values.items()])
+        selections = game.current_player.current_turn.diceselection_set.order_by('-pk').all()
+        context = {
+            'dice': game.current_player.current_turn.rolled_values,
+            'can_select_more': test_score.has_score,
+            'selections': [selection.scored_values for selection in selections],
+            'remaining_count': game.current_player.current_turn.available_dice,
+        }
+        return HttpResponse(template.render(context, request))
+
+
+class UndoSelection(View):
+    def get(self, request, *args, **kwargs):
+        template = loader.get_template('farkle/rolleddice.html')
+        game = Game.objects.get(pk=request.session['game_id'])
+        current_player = game.current_player
+        current_turn = current_player.current_turn
+        selection = DiceSelection.objects.get(pk=kwargs['selection_id'])
+        if selection.turn == current_turn:
+            current_turn.undo_selection(selection=selection)
+        test_score = Score([rv['value'] for key, rv in game.current_player.current_turn.rolled_values.items()])
         selections = game.current_player.current_turn.diceselection_set.all()
         context = {
             'dice': game.current_player.current_turn.rolled_values,
             'can_select_more': test_score.has_score,
             'selections': [selection.scored_values for selection in selections],
-            'remaining_count': game.current_player.current_turn.available_dice
+            'remaining_count': game.current_player.current_turn.available_dice,
         }
         return HttpResponse(template.render(context, request))
+
 
 class History(View):
     def get(self, request, *args, **kwargs):

@@ -10,12 +10,20 @@ function reload_table(refresh_url, selected_dice) {
 			bind_table_dice();
 			turn_on_roll();
 			bind_next_player();
+		  	bind_undo_selection();
 		}
 	});
 }
 
+function bind_undo_selection() {
+	$('input#undoselection').click(function(){
+		var target_url = $(this).attr('data-target-url');
+		reload_table(target_url, {})
+	});
+}
+
 function bind_table_dice() {
-	$('input#tabledice').click(function(event){
+	$('input#tabledice').click(function(){
 		var selected_dice = {};
 		var target_url = $(this).attr('data-check-url');
 		var refresh_url = $(this).attr('data-select-url');

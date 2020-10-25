@@ -24,7 +24,7 @@
 		<tr>
 			<td>{% for dice_id, props in selection.dice.items %}<img src="{% static  props.img_url %}" width="40px" />{% endfor %}</td>
 			<td>{{selection.score_type}}</td>
-			<td>{{selection.score}}</td>
+			<td>{{selection.score}}{% if selection.status == 'active' %} <input type="submit" class="btn btn-primary btn-xsm" id="undoselection" data-target-url="{% url 'undo_selection' selection_id=selection.pk%}" value="undo" />{% endif %}</td>
 		</tr>
 		{% endfor %}
 	</table>
