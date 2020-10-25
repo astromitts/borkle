@@ -1,5 +1,18 @@
 It's Farkle!
 
+Production
+----------------------------------------------------
 Play it here: https://borkle.herokuapp.com/
+
+
+Local
+----------------------------------------------------
+requires: python 3, pipenv (or similar)
+
+pipenv install
+pipenv shell
+python manage.py migrate
+pythin manage.py runserver
+
 
 Look up the rules if you don't know them.
