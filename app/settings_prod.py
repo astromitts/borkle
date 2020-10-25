@@ -1,5 +1,5 @@
 import os
-from project.settings import *  # noqa
+from app.settings import *  # noqa
 
 DEBUG = False
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
