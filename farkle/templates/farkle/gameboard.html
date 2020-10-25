@@ -1,0 +1,25 @@
+{% extends 'farkle/base.html' %}
+{% load static %}
+{% block main_content %}
+<input type="hidden" id="history-url" value="{% url 'history' %}" />
+<div id="scoreboard">
+	<h3>Current player: {{current_player.name}}</h3>
+	{% if is_last_turn %}
+		<h4>THIS IS YOUR LAST TURN!</h4>
+	{% endif %}
+</div>
+<div id="gameboard">
+	<div id="btn-rolldice">
+		<input id="rolldice" class="btn btn-success" type="submit" value="roll the dice!" data-target-url="{% url 'roll_dice' %}" />
+	</div>	
+	<div id="dicetable"></div>
+	<div id="tableddice"></div>
+</div>
+<div id="historyboard">
+	{% include 'farkle/game_history.html' with game=game %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+	<script src="{% static 'js/play.js' %}"></script>
+{% endblock %}

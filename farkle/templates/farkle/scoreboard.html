@@ -1,0 +1,7 @@
+<table border=1>
+	<tr><th>Player</th><th>Score</th></tr>
+	{% for player in players %}
+		<tr><td>{{player.name}}</td><td>{{player.total_score}}</td></tr>
+	{% endfor %}
+	<h3>Current player: {{current_player.name}}</h3>
+</table>

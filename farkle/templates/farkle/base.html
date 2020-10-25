@@ -1,0 +1,31 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+	<meta name="description" content="">
+	<meta name="keywords" content="">
+	<meta name="author" content="Bo Morin">
+	<title>{% block page_title %}Farkle!{% endblock %}</title>
+	<meta content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, shrink-to-fit=no' name='viewport' />
+	<link href="{% static 'bootstrap/css/bootstrap.min.css' %}" rel="stylesheet">
+	<link href= 'https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/ui-lightness/jquery-ui.css' rel='stylesheet'> 
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js" > </script> 
+    <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js" > </script>
+	<script src="{% static 'bootstrap/js/bootstrap.min.js' %}"></script>
+  	<link href="{% static 'css/app.css' %}" rel="stylesheet">
+	{% block extra_js %}
+	{% endblock %}
+</head>
+<body>
+
+	<div class="container">
+		<div id="main-content">
+			<div id="game-container">
+				{% block main_content %}{% endblock %}
+			</div>
+		</div>
+	</div>
+</body>

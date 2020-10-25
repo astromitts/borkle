@@ -1,323 +1,297 @@
 from django.db import models
+from django.db.models import Max
 import random
+from datetime import datetime, timedelta
 from copy import deepcopy
 
-class Score(object):
-    score = 0
+from farkle.utils import Score
 
-    def get_sets(self):
-        sets = {}
-        for d in self.selection:
-            sets[d] = sets.get(d, 0)
-            sets[d] += 1
-        return sets
+dice_set = [1, 2, 3, 4, 5, 6]
+dice_choices = [(i, i) for i in dice_set]
 
-    @property
-    def has_any_of_a_kind(self):
-        sets = self.get_sets()
-        for idx, count in sets.items():
-            if count >= 3:
-                return True
-        return False
+class Game(models.Model):
+    max_score = models.IntegerField(default=5000)
+    turn_index = models.IntegerField(default=1)
+    last_turn = models.BooleanField(default=False)
+    status = models.CharField(max_length=10, default='active')
+    start_time = models.DateTimeField(default=datetime.now)
 
     @property
-    def has_one_or_five(self):
-        return 1 in self.selection or 5 in self.selection
+    def current_player(self):
+        return self.player_set.filter(is_current_player=True).first()
+
+    def start_round(self):
+        starting_player = self.advance_player()
 
     @property
-    def is_three_of_a_kind(self):
-        return len(self.selection) == 3 and len(set(self.selection)) == 1
+    def game_over(self):
+        return self.player_set.filter(had_last_turn=True).count() == self.player_set.count()
+
+    def check_status(self):
+        if self.game_over:
+            self.status = 'over'
+            self.save()
+
+    def get_winner(self):
+        is_tie = False
+        winner = None
+        max_score = self.player_set.all().aggregate(maxscore=Max('total_score'))['maxscore']
+        winner_qs = self.player_set.filter(total_score=max_score)
+        winner_count = winner_qs.count()
+        if winner_count > 1:
+            is_tie = True
+            winner = winner_qs.all()
+        else:
+            winner = winner_qs.first()
+        return winner, is_tie
 
     @property
-    def is_four_of_a_kind(self):
-        return len(self.selection) == 4 and len(set(self.selection)) == 1
+    def turn_over(self):
+        players_went = Turn.objects.filter(player_id__in=[p.pk for p in self.player_set.all()], index=self.turn_index).count()
+        return players_went == self.player_set.count()
 
-    @property
-    def is_five_of_a_kind(self):
-        return len(self.selection) == 5 and len(set(self.selection)) == 1
+    def initiate_last_turn(self):
+        self.last_turn = True
+        self.save()
 
-    @property
-    def is_six_of_a_kind(self):
-        return len(self.selection) == 6 and len(set(self.selection)) == 1
-
-    @property
-    def is_a_straight(self):
-        return len(self.selection) == 6 and len(set(self.selection)) == 6
-
-    @property
-    def is_three_pairs(self):
-        if len(self.selection) == 6:
-            sets = self.get_sets()
-            num_of_pairs = 0
-            for k, amount in sets.items():
-                if amount == 2:
-                    num_of_pairs += 1
-            return num_of_pairs == 3
-        return False
-
-
-
-    @property
-    def is_two_triplets(self):
-        if len(self.selection) == 6:
-            sets = self.get_sets()
-            num_of_trips = 0
-            for k, amount in sets.items():
-                if amount == 3:
-                    num_of_trips += 1
-            return num_of_trips == 2
-        return False
-
-    @property
-    def is_four_of_kind_and_pair(self):
-        if len(self.selection) == 6:
-            sets = self.get_sets()
-            has_a_four = False
-            has_a_pair = False
-            if len(sets) == 2:
-                for k, amount in sets.items():
-                    if amount == 4:
-                        has_a_four = True
-                    if amount == 2:
-                        has_a_pair = True
-                return has_a_pair and has_a_four
-        return False
-
-    @property
-    def is_all_fives(self):
-        return len(set(self.selection)) == 1 and self.selection[0] ==  5
-
-    @property
-    def is_all_ones(self):
-        return len(set(self.selection)) == 1 and self.selection[0] == 1
-
-
-    def __init__(self, selection):
-        self.selection = selection
-        self.score = 0
-        if self.is_four_of_kind_and_pair or self.is_two_triplets:
-            self.score = 2500
-        elif self.is_a_straight or self.is_three_pairs:
-            self.score = 1500
-        elif self.is_three_of_a_kind and self.is_all_ones:
-            self.score = 300
-        elif self.is_three_of_a_kind:
-            self.score = self.selection[0] * 100
-        elif self.is_four_of_a_kind:
-            self.score = 1000
-        elif self.is_five_of_a_kind:
-            self.score = 2000
-        elif self.is_six_of_a_kind:
-            self.score = 3000
-        elif self.is_all_fives:
-            self.score = len(self.selection) * 50
-        elif self.is_all_ones:
-            self.score = len(self.selection) * 100
-
-
-class Die(object):
-    value = None
-    def __init__(self, value=None):
-        if value is None and value not in [1, 2, 3, 4, 5, 6]:
-            self.value = random.choice([1, 2, 3, 4, 5, 6])
-
-
-class Set(object):
-    """ A set represents a series of dice rolls, starting from 6 dice
-        You can continue rolling as long as you have at least 1 die available
-    """
-
-    dice_amount = 6
-    selections = []
-
-    def __init__(self):
-        self.dice_amount = 6
-        self.selections = []
-
-    def roll(self):
-        self.dice = []
-        for i in range(0, self.dice_amount):
-            self.dice.append(Die())
-
-    @property
-    def has_score(self):
-        test_score = Score([d.value for d in self.dice])
-        if test_score.has_one_or_five:
-            return True
-        if test_score.has_any_of_a_kind:
-            return True
-        if test_score.is_a_straight:
-            return True
-        if test_score.is_two_triplets:
-            return True
-        if test_score.is_three_pairs:
-            return True
-        if test_score.is_four_of_kind_and_pair:
-            return True
-        return False
-
-    @property
-    def value(self):
-        return [d.value for d in self.dice]
-
-    def make_selection(self, selection_list):
-        turn_selection = []
-        remaining_dice = []
-        for selection_val in selection_list:
-            idx = 0
-            for dv in self.dice:
-                if dv.value == selection_val:
-                    turn_selection.append(selection_val)
-                    self.dice_amount -= 1
-                    del(self.dice[idx])
-                    break
-                idx += 1
-        self.selections.append(turn_selection)
-
-    def __str__(self):
-        return [d.value for d in self.dice]
-
-    def __unicode__(self):
-        return [d.value for d in self.dice]
-
-
-class Turn(object):
-    """ A turn represents multiple sets of dice rolls
-        Each set of dice rolls has a score
-        A total score, as long as you don't scrub, is calculated from each
-        set at the end of a turn
-    """
-    selection_scores = []
-    dice_amount = 6
-    roll = None
-    total_score = 0
-    sets = []
-    current_set = None
-
-    def __init__(self):
-        self.new_turn()
-
-    def new_turn(self):
-        self.selections = []
-        self.selection_scores = []
-        self.dice_amount = 6
-        self.roll = None
-        self.total_score = 0
-        self.sets = []
-        self.new_set()
-
-    def new_set(self):
-        if self.current_set:
-            set_copy = deepcopy(self.current_set)
-            self.sets.append(set_copy)
-        self.current_set = Set()
-
-    def scrub(self):
-        self.current_set.selections = []
-
-    def flush(self):
-        self.current_set.dice_amount = 6
-
-    def get_score(self):
-        self.total_score = 0
-        self.selection_scores = []
-        if self.current_set not in self.sets:
-            self.sets.append(self.current_set)
-        for _set in self.sets:
-            for selection in _set.selections:
-                selection_score = Score(selection)
-                self.selection_scores.append({'dice': selection, 'score': selection_score})
-                self.total_score += selection_score.score
-
-
-class Player(object):
-    def __init__(self, name):
-        self.name = name
-        self.turns = []
-        self.total_score = 0
-        self.current_turn = None
-        self.had_last_turn = False
-
-    def end_turn(self):
-        turn_score = 0
-        if self.current_turn:
-            self.current_turn.get_score()
-            self.total_score += self.current_turn.total_score
-            turn_score = self.current_turn.total_score
-            current_turn_copy = deepcopy(self.current_turn)
-            self.turns.append(current_turn_copy)
-        self.current_turn = None
-        return turn_score, self.total_score
-
-    def start_turn(self):
-        if self.current_turn:
-            current_turn_copy = deepcopy(self.current_turn)
-            self.turns.append(current_turn_copy)
-        self.current_turn = Turn()
-
-
-class Game(object):
-    def __init__(self, players, max_score=5000):
-        self.players = []
-        self.max_score = max_score
-        for player in players:
-            playerobj = Player(player)
-            self.players.append(playerobj)
-        self.current_player_index = len(self.players) - 1
-        self.current_player = self.players[self.current_player_index]
-        self.current_turn = None
+    def advance_player(self):
+        if self.turn_over:
+            self.turn_index += 1
+            self.save()
+        if not self.current_player:
+            next_player = random.choice(self.player_set.all())
+            next_player.is_current_player = True
+            next_player.save()
+        else:
+            if self.current_player.player_order == self.player_set.count():
+                next_player_index = 1
+            else:
+                next_player_index = self.current_player.player_order +1
+            self.current_player.end_turn()
+            next_player = self.player_set.get(player_order=next_player_index)
+            next_player.is_current_player = True
+            next_player.save()
+        next_player.start_turn()
+        return next_player
 
     @property
     def max_score_reached(self):
-        for player in self.players:
+        for player in self.player_set.all():
             if player.total_score >= self.max_score:
                 return True
         return False
 
-    def advance_to_next_player(self):
-        if self.current_player_index == len(self.players) - 1:
-            self.current_player_index = 0
-        else:
-            self.current_player_index += 1
-        self.current_player.end_turn()
-        self.current_player = self.players[self.current_player_index]
-        self.current_player.start_turn()
+    @property
+    def ordered_players(self):
+        return self.player_set.order_by('player_order').all()
 
-    def print_scores(self):
-        for player in self.players:
-            print("{}:\t\t\t{} points".format(player.name, player.total_score))
 
-    def print_history(self):
+    @property
+    def history(self):
         history = {}
-        for player in self.players:
-            print('{}'.format(player.name))
-            turn_idx = 1
-            for turn in player.turns:
-                print("Turn {}".format(turn_idx))
-                for _set in turn.sets:
-                    set_score = 0
-                    if not _set.selections:
-                        print("SCRUB")
-                    else:
-                        for selection in _set.selections:
-                            selection_score = Score(selection)
-                            print("{} = {}".format(selection, selection_score.score))
-                            set_score += selection_score.score
-                    print("{} set total".format(set_score))
-                turn_idx += 1
+        players = self.player_set.order_by('player_order')
+        for turn_index in reversed(range(1, self.turn_index + 1)):
+            this_turn = history.get(
+                turn_index, {}
+            )
+            for player in players:
+                turn = Turn.objects.filter(player=player, index=turn_index).first()
+                if turn:
+                    this_turn[player] = DiceSelection.objects.filter(turn=turn).all()
+            history[turn_index] = this_turn
+        return history
+
+    @classmethod
+    def lazy_cleanup(cls):
+        expire_threshold = datetime.now() - timedelta(1)
+        cls.objects.filter(start_time__lte=expire_threshold).delete()
+
+
+class Player(models.Model):
+    name = models.CharField(max_length=30)
+    game = models.ForeignKey(Game, on_delete=models.CASCADE)
+    is_current_player = models.BooleanField(default=False)
+    player_order = models.IntegerField(default=1)
+    total_score = models.IntegerField(default=0)
+    had_last_turn = models.BooleanField(default=False)
+
+    def __str__(self):
+        return "game: {} // {}".format(self.game.pk, self.name)
+
+    def save(self, *args, **kwargs):
+        if self.is_current_player:
+            Player.objects.filter(game=self.game, is_current_player=True).update(is_current_player=False)
+        super(Player, self).save(*args, **kwargs)
 
     @property
-    def all_players_had_last_turn(self):
-        for player in self.players:
-            if not player.had_last_turn:
-                return False
-        return True
+    def current_turn(self):
+        return self.turn_set.filter(status='current').first()
+
+    def end_turn(self):
+        if self.current_turn:
+            new_points = self.current_turn.end()
+            self.total_score += new_points
+            self.save()
+            if self.total_score >= self.game.max_score:
+                self.game.initiate_last_turn()
+        if self.game.last_turn:
+            self.had_last_turn = True
+            self.save()
+            self.game.check_status()
+
+    def start_turn(self):
+        if self.current_turn:
+            self.end_turn()
+        new_turn = Turn(index=self.game.turn_index, player=self, game=self.game, status='current')
+        new_turn.save()
+        if self.game.last_turn:
+            self.had_last_turn = True
+            self.save()
+            self.game.check_status()
 
     @property
-    def is_last_turn(self):
-        for player in self.players:
-            if player.had_last_turn:
-                return True
-        return False
+    def history(self):
+        return self.turn_set.order_by('-pk').all()
 
 
+class Turn(models.Model):
+    index = models.IntegerField(default=1)
+    game = models.ForeignKey(Game, on_delete=models.CASCADE)
+    player = models.ForeignKey(Player, on_delete=models.CASCADE)
+    status = models.CharField(max_length=15, choices=[('current', 'current'), ('over', 'over')])
+    score = models.IntegerField(default=0)
+    available_dice = models.IntegerField(default=6)
+    scrubbed = models.BooleanField(default=False)
+    dice_1 = models.IntegerField(choices=dice_choices, null=True)
+    dice_2 = models.IntegerField(choices=dice_choices, null=True)
+    dice_3 = models.IntegerField(choices=dice_choices, null=True)
+    dice_4 = models.IntegerField(choices=dice_choices, null=True)
+    dice_5 = models.IntegerField(choices=dice_choices, null=True)
+    dice_6 = models.IntegerField(choices=dice_choices, null=True)
+
+    def end(self):
+        if self.status != 'over':
+            for selection in self.diceselection_set.all():
+                self.score += selection.score
+            self.status = 'over'
+            self.save()
+        return self.score
+
+    def roll(self):
+        self.dice_1 = None
+        self.dice_2 = None
+        self.dice_3 = None
+        self.dice_4 = None
+        self.dice_5 = None
+        self.dice_6 = None
+
+        if self.available_dice >= 1:
+            self.dice_1 = random.choice(dice_set)
+        if self.available_dice >= 2:
+            self.dice_2 = random.choice(dice_set)
+        if self.available_dice >= 3:
+            self.dice_3 = random.choice(dice_set)
+        if self.available_dice >= 4:
+            self.dice_4 = random.choice(dice_set)
+        if self.available_dice >= 5:
+            self.dice_5 = random.choice(dice_set)
+        if self.available_dice >= 6:
+            self.dice_6 = random.choice(dice_set)
+        self.save()
+
+    def scrub(self):
+        for selection in self.diceselection_set.all():
+            selection.delete()
+
+        scrubbed_selection = DiceSelection(
+            turn=self,
+            score=0,
+            score_type='farkle'
+        )
+        scrubbed_selection.save()
+        self.scrubbed = True
+        self.score = 0
+        self.save()
+
+    @property
+    def rolled_values(self):
+        slots = [self.dice_1, self.dice_2, self.dice_3, self.dice_4, self.dice_5, self.dice_6, ]
+        values = {}
+        idx = 1
+        for die in slots:
+            if die:
+                values['dice_{}'.format(idx)] = {'value': die, 'img_url': 'images/dice/{}.png'.format(die) }
+            idx +=1
+        return values
+
+
+class DiceSelection(models.Model):
+    turn = models.ForeignKey(Turn, on_delete=models.CASCADE)
+    dice_1 = models.IntegerField(choices=dice_choices, null=True)
+    dice_2 = models.IntegerField(choices=dice_choices, null=True)
+    dice_3 = models.IntegerField(choices=dice_choices, null=True)
+    dice_4 = models.IntegerField(choices=dice_choices, null=True)
+    dice_5 = models.IntegerField(choices=dice_choices, null=True)
+    dice_6 = models.IntegerField(choices=dice_choices, null=True)
+    score = models.IntegerField(default=0)
+    score_type = models.CharField(max_length=30, blank=True, null=True)
+
+    @property
+    def scored_values(self):
+        slots = [self.dice_1, self.dice_2, self.dice_3, self.dice_4, self.dice_5, self.dice_6, ]
+        values = {
+            'score': self.score,
+            'score_type': self.score_type,
+            'dice': {}
+        }
+        idx = 1
+        for die in slots:
+            if die:
+                values['dice']['dice_{}'.format(idx)] = {'value': die, 'img_url': 'images/dice/{}.png'.format(die) }
+            idx +=1
+        return values
+
+    def save(self, *args, **kwargs):
+        score_set = []
+        slots = [self.dice_1, self.dice_2, self.dice_3, self.dice_4, self.dice_5, self.dice_6, ]
+        for die in slots:
+            if die and die > 0:
+                score_set.append(die)
+        score = Score(score_set)
+        self.score = score.score
+        self.score_type = score.score_type
+        if self.score == 0:
+            self.score_type = 'farkle'
+        super(DiceSelection, self).save(*args, **kwargs)
+
+    @classmethod
+    def create(cls, turn, selected_dice):
+        new_selection = cls(turn=turn)
+        if selected_dice.get('dice_1'):
+            new_selection.dice_1 = int(selected_dice['dice_1'])
+            new_selection.turn.available_dice -= 1
+            new_selection.turn.dice_1 = 0
+        if selected_dice.get('dice_2'):
+            new_selection.dice_2 = int(selected_dice['dice_2'])
+            new_selection.turn.available_dice -= 1
+            new_selection.turn.dice_2 = 0
+        if selected_dice.get('dice_3'):
+            new_selection.dice_3 = int(selected_dice['dice_3'])
+            new_selection.turn.dice_3 = 0
+            new_selection.turn.available_dice -= 1
+        if selected_dice.get('dice_4'):
+            new_selection.dice_4 = int(selected_dice['dice_4'])
+            new_selection.turn.available_dice -= 1
+            new_selection.turn.dice_4 = 0
+        if selected_dice.get('dice_5'):
+            new_selection.dice_5 = int(selected_dice['dice_5'])
+            new_selection.turn.available_dice -= 1
+            new_selection.turn.dice_5 = 0
+        if selected_dice.get('dice_6'):
+            new_selection.dice_6 = int(selected_dice['dice_6'])
+            new_selection.turn.available_dice -= 1
+            new_selection.turn.dice_6 = 0
+        new_selection.save()
+        if new_selection.turn.available_dice == 0:
+            new_selection.turn.available_dice = 6
+        new_selection.turn.save()

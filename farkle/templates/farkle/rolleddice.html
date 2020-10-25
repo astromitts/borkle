@@ -1,0 +1,39 @@
+{% load static apptags %}
+<h3>You rolled:</h3><br />
+{% for dice_id, props in dice.items %}
+	<span>
+		<img id="{{dice_id}}" class="dice" src="{% static  props.value|get_dice_image %}" width="90px" data-dice-value="{{props.value}}" />
+	</span>
+{% endfor %}
+
+{% if can_select_more %}
+	<div>
+		Click dice to score them! <input class="btn btn-warning" type="submit" id="tabledice" data-check-url="{% url 'check_selection' %}" data-select-url="{% url 'make_selection' %}" value="select dice" />
+	</div>
+
+{% endif %}
+
+{% if not scrubbed %}
+	{% if selections %}
+		<div>
+			OR roll again with {{remaining_count}} dice
+		</div>
+	{% endif %}
+	<table border=1>
+		{% for selection in selections %}
+		<tr>
+			<td>{% for dice_id, props in selection.dice.items %}<img src="{% static  props.img_url %}" width="40px" />{% endfor %}</td>
+			<td>{{selection.score_type}}</td>
+			<td>{{selection.score}}</td>
+		</tr>
+		{% endfor %}
+	</table>
+{% else %}
+	FARKLE! no score :(
+{% endif %}
+{% if selections or scrubbed %}
+	<div>end your turn:</div>
+	<div>
+		<input class="btn btn-danger" type="submit" id="nextplayer" data-target-url="{% url 'play_game' %}" value="End Turn" />
+	</div>
+{% endif %}

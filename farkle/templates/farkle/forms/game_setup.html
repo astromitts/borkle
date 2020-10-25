@@ -1,5 +1,9 @@
+{% extends 'farkle/base.html' %}
+{% block main_content %}
 <div class="row">
-	<div class="{% if fullwidth %}{% elif mediumwidth %}col-6{%else%}col-3{% endif %} col">
+	<div class="col col-5">
+		<h3>Game setup</h3>
+		<div>(up to 6 players)</div>
 		<form class="form" method="{% if method %}{{method}}{% else %}POST{% endif %}" action="{{action}}">
 			{% if method != 'GET' %}
 				{% csrf_token %}
@@ -13,3 +17,4 @@
 		</form>
 	</div>
 </div>
+{% endblock %}

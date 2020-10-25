@@ -1,0 +1,26 @@
+{% extends 'farkle/base.html' %}
+{% load static apptags %}
+{% block main_content %}
+<input type="hidden" id="history-url" value="{% url 'history' %}" />
+<div id="scoreboard">
+	<h3>GAME OVER!</h3>
+	{% if is_tie %}
+		<h4>It's a tie!!!</h4>
+		<h4>The winners are:</h4>
+		{% for winners in winner %}
+			<h4>{{winners.name}}! {{winners.total_score}} points to {{winners.name}}!</h4>
+		{% endfor %}
+	{% else %}
+		<h4>The winner is {{winner.name}}! {{winner.total_score}} points to {{winner.name}}!</h4>
+	{% endif %}
+	<a href="{% url 'new_game' %}" /><button class="btn btn-success">Play again!</button></a>
+</div>
+
+<div id="historyboard">
+	{% include 'farkle/game_history.html' with game=game %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+	<script src="{% static 'js/play.js' %}"></script>
+{% endblock %}

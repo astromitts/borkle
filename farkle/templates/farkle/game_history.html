@@ -1,0 +1,31 @@
+{% load static apptags %}
+<h3>Game History</h3>
+<table border=1>
+<tr><td></td>
+{% for player in game.ordered_players %}
+	<th class="{% if player.had_last_turn and player != game.current_player or game.status == 'over' %}player-history-last-turn{% endif %}">{{player.name}}<br />{{player.total_score}} / {{game.max_score}}</th>
+{% endfor %}
+</tr>
+{% for turn, data in game.history.items %}
+<tr>
+	<th>turn {{turn}}</th>
+	{% for player in game.ordered_players %}
+		{% with data|get:player as selections %}
+			{% if selections %}
+				<td>
+				{% for selection in selections %}
+					{% with selection|get_dice_images as dimgs %}
+					{% for dimg in dimgs %}
+					<img src="{% static dimg %}" width="30px" />
+					{% endfor %}
+					{% endwith %}= {{selection.score}}<br />
+				{% endfor %}
+				</td>
+			{% else %}
+			<td> </td>
+			{% endif %}
+		{% endwith %}
+	{% endfor %}
+</tr>
+{% endfor %}
+</table>
